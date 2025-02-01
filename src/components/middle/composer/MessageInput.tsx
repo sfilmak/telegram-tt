@@ -3,7 +3,7 @@ import type { FC } from '../../../lib/teact/teact';
 import React, {
   getIsHeavyAnimating,
   memo, useEffect, useLayoutEffect,
-  useRef, useState,
+  useRef, useState, useCallback
 } from '../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../global';
 
@@ -410,9 +410,15 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     } else if (!isComposing && e.key === 'ArrowUp' && !html && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       editLastMessage();
+    } else if (!isComposing && (e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      deleteLastWord();
+  
+      const event = new Event('input', { bubbles: true });
+      inputRef.current?.dispatchEvent(event);
     } else {
       e.target.addEventListener('keyup', processSelectionWithTimeout, { once: true });
-    }
+    } 
   }
 
   function handleChange(e: ChangeEvent<HTMLDivElement>) {
@@ -435,7 +441,47 @@ const MessageInput: FC<OwnProps & StateProps> = ({
         focusEditableElement(inputRef.current!, true);
       }
     }
+
+    //Custom handling of the CMD+Z and Ctrl+Z
+
   }
+
+  const deleteLastWord = () => {
+    const div = inputRef.current;
+    if (!div) return;
+  
+    const selection = window.getSelection();
+    const content = div.textContent || '';
+  
+    // If there's a selection, delete it instead of the last word
+    if (selection != null && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      return;
+    }
+  
+    // Find the last word boundary
+    const trimmedContent = content.trimEnd();
+    const lastSpaceIndex = trimmedContent.lastIndexOf(' ');
+  
+    if (lastSpaceIndex === -1) {
+      // If no space found, clear the entire content
+      div.textContent = '';
+    } else {
+      // Delete up to the last space
+      div.textContent = content.substring(0, lastSpaceIndex + 1);
+    }
+  
+    // Maintain focus and place cursor at the end
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(div);
+    range.collapse(false);
+    if (sel != null) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  };
 
   function handleAndroidContextMenu(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
     if (!checkSelection()) {
