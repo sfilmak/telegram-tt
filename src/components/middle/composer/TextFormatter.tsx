@@ -40,6 +40,7 @@ interface ISelectedTextFormats {
   strikethrough?: boolean;
   monospace?: boolean;
   spoiler?: boolean;
+  quote?: boolean;
 }
 
 const TEXT_FORMAT_BY_TAG_NAME: Record<string, keyof ISelectedTextFormats> = {
@@ -51,6 +52,7 @@ const TEXT_FORMAT_BY_TAG_NAME: Record<string, keyof ISelectedTextFormats> = {
   DEL: 'strikethrough',
   CODE: 'monospace',
   SPAN: 'spoiler',
+  BLOCKQUOTE: 'quote',
 };
 const fragmentEl = document.createElement('div');
 
@@ -202,7 +204,37 @@ const TextFormatter: FC<OwnProps> = ({
     return undefined;
   }
 
+  const handleQuoteText = useLastCallback(() => {
+    console.log("Handling quote text");
+    if (selectedTextFormats.quote) {
+      const element = getSelectedElement();
+      if (
+        !selectedRange
+        || !element
+        || element.dataset.entityType !== ApiMessageEntityTypes.Blockquote
+        || !element.textContent
+      ) {
+        return;
+      }
+
+      element.replaceWith(element.textContent);
+      setSelectedTextFormats((selectedFormats) => ({
+        ...selectedFormats,
+        quote: false,
+      }));
+
+      return;
+    }
+
+    const text = getSelectedText();
+    document.execCommand(
+      'insertHTML', false, `<blockquote class="blockquote" data-entity-type="${ApiMessageEntityTypes.Blockquote}">${text}</blockquote>`,
+    );
+    onClose();
+  })
+
   const handleSpoilerText = useLastCallback(() => {
+    console.log("Handling spoiler text");
     if (selectedTextFormats.spoiler) {
       const element = getSelectedElement();
       if (
@@ -353,6 +385,7 @@ const TextFormatter: FC<OwnProps> = ({
       m: handleMonospaceText,
       s: handleStrikethroughText,
       p: handleSpoilerText,
+      q: handleQuoteText,
     };
 
     const handler = HANDLERS_BY_KEY[getKeyFromEvent(e)];
@@ -423,6 +456,14 @@ const TextFormatter: FC<OwnProps> = ({
           onClick={handleSpoilerText}
         >
           <Icon name="eye-closed" />
+        </Button>
+        <Button
+          color="translucent"
+          ariaLabel="Quote text"
+          className={getFormatButtonClassName('quote')}
+          onClick={handleQuoteText}
+        >
+          <Icon name="quote" />
         </Button>
         <div className="TextFormatter-divider" />
         <Button
