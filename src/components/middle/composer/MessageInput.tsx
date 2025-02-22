@@ -3,9 +3,11 @@ import type { FC } from '../../../lib/teact/teact';
 import React, {
   getIsHeavyAnimating,
   memo, useEffect, useLayoutEffect,
-  useRef, useState, useCallback
+  useRef, useState
 } from '../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../global';
+import parseMarkdown2 from '../../../util/parseHtmlAsFormattedText';
+import parseMarkdown from '../../../util/parseHtmlAsFormattedText';
 
 import type { ApiInputMessageReplyInfo } from '../../../api/types';
 import type { IAnchorPosition, ISettings, ThreadId } from '../../../types';
@@ -250,6 +252,8 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   useLayoutEffect(() => {
     const html = isActive ? getHtml() : '';
 
+    console.log("That HTML: " + html);
+
     if (html !== inputRef.current!.innerHTML) {
       inputRef.current!.innerHTML = html;
     }
@@ -259,7 +263,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     }
 
     if (html !== htmlRef.current) {
-      htmlRef.current = html;
+      htmlRef.current = parseMarkdown2(html);
 
       updateInputHeight(!html);
     }

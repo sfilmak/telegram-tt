@@ -76,7 +76,160 @@ export function fixImageContent(fragment: HTMLDivElement) {
   });
 }
 
-function parseMarkdown(html: string) {
+type NodeType =
+  | 'Text'
+  | 'Bold'
+  | 'Italic'
+  | 'Strikethrough'
+  | 'Code'
+  | 'Pre'
+  | 'Spoiler'
+  | 'CustomEmoji'
+  | 'Newline';
+
+interface ASTNode {
+  type: NodeType;
+  value?: string; // For text nodes
+  children?: ASTNode[]; // For nested nodes
+  attributes?: Record<string, string>; // For nodes with attributes (e.g., CustomEmoji)
+}
+
+type TokenType = 'Text' | 'Bold' | 'Italic' | 'Strikethrough' | 'Code' | 'Pre' | 'Spoiler' | 'CustomEmoji' | 'Newline';
+
+interface Token {
+  type: TokenType;
+  value: string;
+}
+
+function tokenize(input: string): Token[] {
+  const tokens: Token[] = [];
+  let i = 0;
+
+  while (i < input.length) {
+    // Check for double stars (bold)
+    if (input.startsWith('**', i)) {
+      tokens.push({ type: 'Bold', value: '**' });
+      i += 2;
+    }
+    // Check for single star (italic, but only if it's part of a valid pattern)
+    else if (input.startsWith('*', i) && !/\S\*\S/.test(input.slice(i - 1, i + 2))) {
+      // Ignore single stars that are not part of a valid Markdown pattern
+      tokens.push({ type: 'Text', value: '*' });
+      i += 1;
+    }
+    // Check for double underscores (italic)
+    else if (input.startsWith('__', i)) {
+      tokens.push({ type: 'Italic', value: '__' });
+      i += 2;
+    }
+    // Check for strikethrough
+    else if (input.startsWith('~~', i)) {
+      tokens.push({ type: 'Strikethrough', value: '~~' });
+      i += 2;
+    }
+    // Check for code
+    else if (input.startsWith('`', i)) {
+      tokens.push({ type: 'Code', value: '`' });
+      i += 1;
+    }
+    // Check for newlines
+    else if (input.startsWith('\n', i)) {
+      tokens.push({ type: 'Newline', value: '\n' });
+      i += 1;
+    }
+    // Handle plain text
+    else {
+      let text = '';
+      while (i < input.length && !/[`*_~\n]/.test(input[i])) {
+        text += input[i];
+        i++;
+      }
+      tokens.push({ type: 'Text', value: text });
+    }
+  }
+
+  return tokens;
+}
+
+function parse(tokens: Token[]): ASTNode[] {
+  const nodes: ASTNode[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+
+    if (token.type === 'Text') {
+      nodes.push({ type: 'Text', value: token.value });
+      i++;
+    } else if (token.type === 'Bold') {
+      const boldNode: ASTNode = { type: 'Bold', children: [] };
+      i++; // Skip opening '**'
+      while (i < tokens.length && tokens[i].type !== 'Bold') {
+        boldNode.children!.push(...parse([tokens[i]]));
+        i++;
+      }
+      i++; // Skip closing '**'
+      nodes.push(boldNode);
+    } else if (token.type === 'Italic') {
+      const italicNode: ASTNode = { type: 'Italic', children: [] };
+      i++; // Skip opening '__'
+      while (i < tokens.length && tokens[i].type !== 'Italic') {
+        italicNode.children!.push(...parse([tokens[i]]));
+        i++;
+      }
+      i++; // Skip closing '__'
+      nodes.push(italicNode);
+    } else if (token.type === 'Newline') {
+      nodes.push({ type: 'Newline', value: '\n' });
+      i++;
+    }
+    // Add handling for other token types (e.g., Code, Strikethrough, etc.)
+  }
+
+  return nodes;
+}
+
+function renderAST(node: ASTNode): string {
+  switch (node.type) {
+    case 'Text':
+      return node.value || '';
+    case 'Bold':
+      return `<b>${node.children?.map(renderAST).join('') || ''}</b>`;
+    case 'Italic':
+      return `<i>${node.children?.map(renderAST).join('') || ''}</i>`;
+    case 'Newline':
+      return '<br>';
+    // Add cases for other node types
+    default:
+      return '';
+  }
+}
+
+function render(ast: ASTNode[]): string {
+  return ast.map(renderAST).join('');
+}
+
+function parseMarkdown2(html: ApiFormattedText) {
+  console.log("Parsing markdown now: " + html.text);
+  const tokens = tokenize(html.text);
+  const ast = parse(tokens);
+  console.log("Rendered: " + render(ast));
+  html.text = render(ast);
+  return render(ast);
+}
+
+function parseMarkdown(html: string): string {
+  console.log("Parsing markdown now: " + html);
+  const tokens = tokenize(html);
+  const ast = parse(tokens);
+  console.log("Rendered: " + render(ast));
+  return render(ast);
+}
+
+/*function parseMarkdown(html: string) {
+
+  console.log("Parsing markdown now: " + html);
+
   let parsedHtml = html.slice(0);
 
   // Strip redundant nbsp's
@@ -132,7 +285,7 @@ function parseMarkdown(html: string) {
   );
 
   return parsedHtml;
-}
+}*/
 
 function parseMarkdownLinks(html: string) {
   return html.replace(new RegExp(`\\[([^\\]]+?)]\\((${RE_LINK_TEMPLATE}+?)\\)`, 'g'), (_, text, link) => {
